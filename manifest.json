@@ -1,0 +1,24 @@
+{
+    "manifest_version": 2,
+    "name": "Reddit Activity Viewer",
+    "version": "1.0",
+    "description": "Get a activity summary of a specfic user.",
+    "icons": {
+      "48": "icon.png"
+    },
+    "permissions": [
+      "activeTab",
+      "tabs"
+    ],
+    "browser_action": {
+      "default_popup": "popup.html",
+      "default_icon": "icon.png"
+    },
+    "content_scripts": [
+      {
+        "matches": ["<all_urls>"],
+        "css": ["style.css"]
+      }
+    ]
+  }
+  
