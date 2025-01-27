@@ -1,7 +1,21 @@
 import CONFIG from "./config.js"; // Import the config file
 
+// Auto-populate the username input and results field on page load
+document.addEventListener("DOMContentLoaded", () => {
+  const lastUserData = JSON.parse(localStorage.getItem("lastUserData"));
+  const lastUsernames = JSON.parse(localStorage.getItem("lastUsernames")) || [];
+
+  if (lastUserData) {
+    document.getElementById("username").value = lastUserData.username;
+    document.getElementById("results").innerHTML = lastUserData.resultsHTML;
+  }
+
+  setupAutocomplete(lastUsernames);
+});
+
+// Event listener for "Get Activity" button
 document.getElementById("getActivity").addEventListener("click", async () => {
-  const username = document.getElementById("username").value;
+  const username = document.getElementById("username").value.trim();
   const resultsDiv = document.getElementById("results");
 
   if (!username) {
@@ -18,7 +32,7 @@ document.getElementById("getActivity").addEventListener("click", async () => {
     if (data.error) {
       resultsDiv.textContent = `Error: ${data.error}`;
     } else {
-      resultsDiv.innerHTML = `
+      const resultsHTML = `
         <span><strong>Account Created:</strong> ${data.account_creation_date}</span><br/>
         <span><strong>Total Posts:</strong> ${data.total_posts}</span><br/>
         <span><strong>Total Comments:</strong> ${data.total_comments}</span><br/>
@@ -27,8 +41,7 @@ document.getElementById("getActivity").addEventListener("click", async () => {
 
         <span><strong>Account Active Between:</strong> ${data.first_activity_date} - ${data.last_activity_date}</span><br/>
         <span><strong>Average Posts Per Day (active period):</strong> ${data.average_posts_per_day_active_period}</span><br/>
-        <span><strong>Average Posts Per Day (active period):</strong> ${data.average_comments_per_day_active_period}</span><br/><br/>
-
+        <span><strong>Average Comments Per Day (active period):</strong> ${data.average_comments_per_day_active_period}</span><br/><br/>
 
         <span><strong>Active Subreddits by Post (Top 15, Total ${data.unique_subreddit_posts}):</strong></span><br/>
         <ul>
@@ -68,8 +81,87 @@ document.getElementById("getActivity").addEventListener("click", async () => {
             .join("")}
         </ul>
       `;
+
+      resultsDiv.innerHTML = resultsHTML;
+
+      // Save data to localStorage
+      saveToLocalStorage(username, resultsHTML);
     }
   } catch (err) {
     resultsDiv.textContent = `Error: ${err.message}`;
   }
 });
+
+// Save the username and results to localStorage
+function saveToLocalStorage(username, resultsHTML) {
+  const lastUserData = { username, resultsHTML };
+  localStorage.setItem("lastUserData", JSON.stringify(lastUserData));
+
+  const lastUsernames = JSON.parse(localStorage.getItem("lastUsernames")) || [];
+  if (!lastUsernames.includes(username)) {
+    lastUsernames.unshift(username); // Add the new username to the top
+    if (lastUsernames.length > 10) {
+      lastUsernames.pop(); // Keep only the last 10 usernames
+    }
+  }
+  localStorage.setItem("lastUsernames", JSON.stringify(lastUsernames));
+
+  setupAutocomplete(lastUsernames);
+}
+
+// Setup autocomplete dropdown for the username input
+function setupAutocomplete(lastUsernames) {
+  const inputField = document.getElementById("username");
+  let autocompleteList = document.getElementById("autocompleteList");
+
+  // If autocompleteList doesn't exist, create it
+  if (!autocompleteList) {
+    autocompleteList = document.createElement("ul");
+    autocompleteList.id = "autocompleteList";
+    autocompleteList.style.position = "absolute";
+    autocompleteList.style.background = "#fff";
+    autocompleteList.style.border = "1px solid #ccc";
+    autocompleteList.style.width = `${inputField.offsetWidth}px`;
+    autocompleteList.style.maxHeight = "150px";
+    autocompleteList.style.overflowY = "auto";
+    autocompleteList.style.zIndex = "1000";
+    autocompleteList.style.listStyle = "none";
+    autocompleteList.style.padding = "5px 0";
+    autocompleteList.style.margin = "0";
+    autocompleteList.style.display = "none"; // Hidden by default
+    document.body.appendChild(autocompleteList);
+  }
+
+  // Position the autocompleteList below the input field
+  const rect = inputField.getBoundingClientRect();
+  autocompleteList.style.top = `${rect.bottom + window.scrollY}px`;
+  autocompleteList.style.left = `${rect.left + window.scrollX}px`;
+
+  // Populate the list with recent usernames
+  autocompleteList.innerHTML = lastUsernames
+    .map(
+      (username) =>
+        `<li style="padding: 5px; cursor: pointer;">${username}</li>`
+    )
+    .join("");
+
+  // Show the list when input is focused
+  inputField.addEventListener("focus", () => {
+    autocompleteList.style.display = lastUsernames.length ? "block" : "none";
+  });
+
+  // Hide the list when clicking outside
+  document.addEventListener("click", (e) => {
+    if (!autocompleteList.contains(e.target) && e.target !== inputField) {
+      autocompleteList.style.display = "none";
+    }
+  });
+
+  // Populate the input field when a username is clicked
+  autocompleteList.addEventListener("click", (e) => {
+    if (e.target.tagName === "LI") {
+      inputField.value = e.target.textContent;
+      autocompleteList.style.display = "none";
+    }
+  });
+}
