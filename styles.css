@@ -27,12 +27,6 @@ body {
   margin-bottom: 20px;
 }
 
-.reddit-logo {
-  width: 50px;
-  height: 50px;
-  margin-bottom: 10px;
-}
-
 .content h1 {
   font-size: 1.5rem;
   margin-bottom: 10px;
@@ -54,18 +48,31 @@ body {
   margin-right: 8px;
 }
 
-.search-button {
-  font-size: 1rem;
-  background-color: #ff4500;
-  color: #fff;
-  border: none;
+.autocomplete-list {
+  position: absolute;
+  background: #fff;
+  border: 1px solid #ccc;
   border-radius: 8px;
-  padding: 8px 12px;
+  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+  margin-top: 5px;
+  width: 90%;
+  max-height: 150px;
+  overflow-y: auto;
+  list-style: none;
+  padding: 0;
+  display: none; /* Hidden by default */
+  z-index: 1000;
+}
+
+.autocomplete-list li {
+  padding: 10px;
   cursor: pointer;
 }
 
-.search-button:hover {
-  background-color: #d73600;
+.autocomplete-list li:hover,
+.autocomplete-list li:focus {
+  background-color: #0079d3;
+  color: #fff;
 }
 
 .get-activity-button {

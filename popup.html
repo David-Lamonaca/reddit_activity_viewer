@@ -13,7 +13,16 @@
     </header>
     <main class="content">
       <div class="search-section">
-        <input type="text" placeholder="Username" id="username" class="search-input">
+        <input
+          type="text"
+          placeholder="Username"
+          id="username"
+          class="search-input"
+          autocomplete="off"
+        />
+        <ul id="autocompleteList" class="autocomplete-list">
+          <!-- Items dynamically added here -->
+        </ul>
       </div>
       <button id="getActivity" class="get-activity-button">Get Activity</button>
       <div class="results-section">
@@ -23,6 +32,6 @@
       </div>
     </main>
   </div>
+  <script src="popup.js" type="module"></script>
 </body>
-<script src="popup.js" type="module"></script>
 </html>
