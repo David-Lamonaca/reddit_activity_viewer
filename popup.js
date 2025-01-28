@@ -2,10 +2,21 @@ import CONFIG from "./config.js";
 
 document.addEventListener("DOMContentLoaded", () => 
 {
+  const params = new URLSearchParams(window.location.search);
+  const username = params.get("username");
+  const usernameInput = document.getElementById("username");
+  const getActivityButton = document.getElementById("getActivity");
+
   const lastUserData = JSON.parse(localStorage.getItem("lastUserData"));
   const lastUsernames = JSON.parse(localStorage.getItem("lastUsernames")) || [];
 
-  if (lastUserData) {
+  if (username) 
+  {
+    usernameInput.value = username;
+    getActivityButton.click();
+  }
+  else if (lastUserData) 
+  {
     document.getElementById("username").value = lastUserData.username;
     document.getElementById("results").innerHTML = lastUserData.resultsHTML;
   }

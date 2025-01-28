@@ -1,24 +1,26 @@
 {
-    "manifest_version": 2,
-    "name": "Reddit Activity Viewer",
-    "version": "1.0",
-    "description": "Get a activity summary of a specfic user.",
-    "icons": {
+  "manifest_version": 2,
+  "name": "Reddit Activity Viewer",
+  "version": "1.0",
+  "description": "Find you who you're talking to, get the selected users account informations such as: Creation date, total posts and comments, Active period, there most active subreddits, and there best and worst takes.",
+  "permissions": ["activeTab", "https://*.reddit.com/*", "storage"],
+  "browser_action": {
+    "default_popup": "popup.html",
+    "default_icon": {
       "48": "icon.png"
-    },
-    "permissions": [
-      "activeTab",
-      "tabs"
-    ],
-    "browser_action": {
-      "default_popup": "popup.html",
-      "default_icon": "icon.png"
-    },
-    "content_scripts": [
-      {
-        "matches": ["<all_urls>"],
-        "css": ["style.css"]
-      }
-    ]
-  }
-  
+    }
+  },
+  "icons": {
+    "48": "icon.png"
+  },
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": true
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*.reddit.com/*"],
+      "js": ["content.js"]
+    }
+  ]
+}

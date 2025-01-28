@@ -107,7 +107,7 @@ body {
 .results-content {
   font-size: 0.9rem;
   color: #666;
-  max-height: 200px;
+  height: 200px;
 
   overflow-y: scroll;
   scrollbar-width: thin; 
