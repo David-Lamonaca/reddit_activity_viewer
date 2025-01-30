@@ -4,10 +4,13 @@ import dotenv from "dotenv";
 import { LRUCache } from "lru-cache";
 import cors from "cors";
 
-dotenv.config();
+if (process.env.NODE_ENV !== "production") 
+{
+  dotenv.config();
+}
+
 const app = express();
 app.use(cors());
-
 const {
   CLIENT_ID: clientId,
   CLIENT_SECRET: clientSecret,
