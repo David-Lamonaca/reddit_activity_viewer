@@ -4,9 +4,11 @@ const processedElements = new WeakSet();
 function addActivityButtons() {
   // Select all relevant faceplate-tracker elements
   const targetElements = document.querySelectorAll(
-    'faceplate-tracker[noun="comment_author"], faceplate-tracker[noun="user_profile"], faceplate-tracker[noun="user"]'
+    'faceplate-tracker[noun="comment_author"]:not(.user-hover-card *), ' +
+    'faceplate-tracker[noun="user_profile"]:not(.user-hover-card *), ' +
+    'faceplate-tracker[noun="user"]:not(.user-hover-card *)'
   );
-
+  
   targetElements.forEach((element) => {
     // Skip if this element is already processed
     if (processedElements.has(element)) return;
@@ -29,10 +31,20 @@ function addActivityButtons() {
     button.textContent = "📊";
     button.title = "Get Activity";
     button.className = "activity-button";
-    button.style.marginLeft = "5px";
     button.style.cursor = "pointer";
     button.style.background = "transparent";
     button.style.fontSize = "12px";
+
+    if (window.location.pathname.includes("/comments/")) 
+    {
+      button.style.marginLeft = "5px";
+    } 
+    else if (window.location.pathname.includes("/r/"))
+    {
+        button.style.position = "absolute";
+        button.style.top = "0";
+        button.style.left = "calc(100% + 5px)";
+    }
 
     // Add click listener
     button.addEventListener("click", () => {
