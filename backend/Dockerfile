@@ -17,7 +17,7 @@ COPY . .
 ENV DOCKER_ENV=true
 
 # Expose the port used inside the container
-EXPOSE 5000
+EXPOSE 80
 
 # Start the Node.js application
 CMD ["node", "index.js"]
