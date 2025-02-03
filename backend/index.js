@@ -3,6 +3,7 @@ import axios from "axios";
 import dotenv from "dotenv";
 import { LRUCache } from "lru-cache";
 import cors from "cors";
+import { RedditComment, MostUsedWord, TopSubreddit, DataSummary, Result } from './RedditModels.js';
 
 if (process.env.NODE_ENV !== "production") 
 {
@@ -11,241 +12,253 @@ if (process.env.NODE_ENV !== "production")
 
 const app = express();
 app.use(cors());
-const {
-  CLIENT_ID: clientId,
-  CLIENT_SECRET: clientSecret,
-  USER_AGENT: userAgent,
-  HOST: host,
-  PORT: port,
+
+const { 
+  CLIENT_ID, 
+  CLIENT_SECRET, 
+  USER_AGENT, 
+  HOST, 
+  PORT, 
+  STOP_WORDS 
 } = process.env;
 
 const cache = new LRUCache({
-  max: 100,
-  maxSize: 20 * 1024 * 1024, 
+  max: 200,
+  maxSize: 20 * 1024 * 1024,
   sizeCalculation: (value, key) => JSON.stringify(value).length + key.length,
-  ttl: 1000 * 60 * 20, 
+  ttl: 1000 * 60 * 30,
 });
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const fetchPaginatedData = async (url, token, userAgent) => 
-{
-  const fetchPage = async (after) => 
-  {
-    console.log(`Fetching page with after: ${after}`);
-    const { data: responseData } = await axios.get(url, 
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "User-Agent": userAgent,
-      },
-      params: {
-        limit: 100,
-        after,
-      },
-    });
-    return responseData;
-  };
 
+const fetchPaginatedData = async (url, token) => {
   let after = null;
   const allData = [];
 
-  while (true) 
-  {
-    const response = await fetchPage(after);
+  while (true) {
+    const { data: response } = await axios.get(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "User-Agent": USER_AGENT,
+      },
+      params: { limit: 100, after },
+    });
 
     const newItems = response.data.children.map(({ data }) => data);
-    console.log(`Fetched ${newItems.length} items.`);
     allData.push(...newItems);
-
     after = response.data.after;
-    if (!after) 
-    {
-      console.log("No more pages to fetch.");
-      break;
-    }
-
+    if (!after) break;
     await delay(500);
   }
 
-  console.log(`Total fetched items: ${allData.length}`);
   return allData;
 };
 
-const fetchRedditUserData = async (username) => 
-{
-  try 
-  {
-    console.log("Requesting Reddit API token...");
+const fetchRedditUserData = async (username) => {
+  try {
     const { data: tokenResponse } = await axios.post(
       "https://www.reddit.com/api/v1/access_token",
       new URLSearchParams({ grant_type: "client_credentials" }),
       {
-        auth: { username: clientId, password: clientSecret },
-        headers: { "User-Agent": userAgent },
+        auth: { username: CLIENT_ID, password: CLIENT_SECRET },
+        headers: { "User-Agent": USER_AGENT },
       }
     );
 
     const token = tokenResponse.access_token;
-    console.log("Token received.");
 
     const [userResponse, submissions, comments] = await Promise.all([
       axios.get(`https://oauth.reddit.com/user/${username}/about`, {
         headers: {
           Authorization: `Bearer ${token}`,
-          "User-Agent": userAgent,
+          "User-Agent": USER_AGENT,
         },
       }),
       fetchPaginatedData(
         `https://oauth.reddit.com/user/${username}/submitted`,
-        token,
-        userAgent
+        token
       ),
       fetchPaginatedData(
         `https://oauth.reddit.com/user/${username}/comments`,
-        token,
-        userAgent
+        token
       ),
     ]);
 
     return { userData: userResponse.data, submissions, comments };
-  } 
-  catch (error) 
-  {
-    console.error("Error fetching Reddit user data:", error.response?.data || error.message);
+  } catch (error) {
     throw new Error(error.response?.data?.message || "Failed to fetch user data");
   }
 };
 
-const calculatePercentage = (part, total) =>
-  total === 0 ? "0.00%" : `${((part / total) * 100).toFixed(2)}%`;
-
 const formatDate = (timestamp) =>
-  new Intl.DateTimeFormat("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  }).format(new Date(timestamp));
+  new Intl.DateTimeFormat("en-US", { year: "numeric", month: "long", day: "numeric" }).format(
+    new Date(timestamp)
+  );
 
-app.get("/get_user_activity", async (req, res) => 
+const getTopWords = (texts, limit = 10) => 
 {
-  const { username } = req.query;
-  if (!username) 
-  {
-    return res.status(400).json({ error: "Username is required" });
-  }
+  const stopWords = new Set(STOP_WORDS ? STOP_WORDS.split(",") : []);
+  const wordCounts = {};
+  const words = texts.join(" ").toLowerCase().match(/\b\w{3,}\b/g) || [];
 
-  try 
-  {
-    if (cache.has(username)) 
-    {
-      console.log(`Cache hit for username: ${username}`);
-      return res.json(cache.get(username));
+  words.forEach((word) => {
+    if (!stopWords.has(word)) {
+      wordCounts[word] = (wordCounts[word] || 0) + 1;
     }
+  });
 
-    console.log(`Cache miss for username: ${username}. Fetching data...`);
-    const { userData, submissions, comments } = await fetchRedditUserData(username);
+  return Object.entries(wordCounts)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, limit)
+    .map(([word, count]) => new MostUsedWord(word, count));
+};
 
-    const accountCreationDate = new Date(userData.data.created_utc * 1000);
-    const totalPosts = submissions.length;
-    const totalComments = comments.length;
+const processUserData = (userData, submissions, comments) => {
+  const accountCreationDate = new Date(userData.data.created_utc * 1000);
+  const totalPosts = submissions.length;
+  const totalComments = comments.length;
 
-    const currentDate = new Date();
-    const accountAgeDays = Math.ceil(
-      (currentDate - accountCreationDate) / (1000 * 60 * 60 * 24)
+  const allTexts = [...submissions.map(({ title }) => title), ...comments.map(({ body }) => body)];
+  const topWords = getTopWords(allTexts);
+
+  const currentYear = new Date().getFullYear();
+  const accountAgeDays = Math.ceil((Date.now() - accountCreationDate) / (1000 * 60 * 60 * 24));
+
+  const yearlyData = {};
+  const subredditPostCounts = {};
+  const subredditCommentCounts = {};
+  const uniqueSubredditsPosts = new Set();
+  const uniqueSubredditsComments = new Set();
+
+  const processActivity = (items, type) => {
+    items.forEach(({ created_utc, subreddit }) => {
+      const year = new Date(created_utc * 1000).getFullYear();
+      if (!yearlyData[year]) {
+        yearlyData[year] = {
+          posts: 0,
+          comments: 0,
+          subredditPosts: {},
+          subredditComments: {},
+          uniqueSubredditsPosts: new Set(),
+          uniqueSubredditsComments: new Set(),
+        };
+      }
+      yearlyData[year][type]++;
+      yearlyData[year][`subreddit${type.charAt(0).toUpperCase() + type.slice(1)}`][subreddit] =
+        (yearlyData[year][`subreddit${type.charAt(0).toUpperCase() + type.slice(1)}`][subreddit] || 0) + 1;
+
+      if (type === "posts") {
+        subredditPostCounts[subreddit] = (subredditPostCounts[subreddit] || 0) + 1;
+        uniqueSubredditsPosts.add(subreddit);
+        yearlyData[year].uniqueSubredditsPosts.add(subreddit);
+      }
+      if (type === "comments") {
+        subredditCommentCounts[subreddit] = (subredditCommentCounts[subreddit] || 0) + 1;
+        uniqueSubredditsComments.add(subreddit);
+        yearlyData[year].uniqueSubredditsComments.add(subreddit);
+      }
+    });
+  };
+
+  processActivity(submissions, "posts");
+  processActivity(comments, "comments");
+
+  const sortedSubredditsByPosts = Object.entries(subredditPostCounts)
+    .map(([subreddit, count]) => {
+      const subredditInstance = new TopSubreddit(subreddit, count);
+      subredditInstance.calculatePercentage(totalPosts);
+      return subredditInstance;
+    })
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+
+  const sortedSubredditsByComments = Object.entries(subredditCommentCounts)
+    .map(([subreddit, count]) => {
+      const subredditInstance = new TopSubreddit(subreddit, count);
+      subredditInstance.calculatePercentage(totalComments);
+      return subredditInstance;
+    })
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+
+  const dataSummary = new DataSummary(
+    formatDate(accountCreationDate),
+    totalPosts,
+    totalComments,
+    (totalPosts / accountAgeDays).toFixed(4),
+    (totalComments / accountAgeDays).toFixed(4),
+    uniqueSubredditsPosts.size,
+    uniqueSubredditsComments.size,
+    sortedSubredditsByPosts,
+    sortedSubredditsByComments
+  );
+
+  const yearlyStats = Object.keys(yearlyData).map((year) => {
+    const yearAgeDays =
+      (year == currentYear ? Date.now() : new Date(year, 11, 31)) - new Date(year, 0, 1);
+    const daysInYear = Math.ceil(yearAgeDays / (1000 * 60 * 60 * 24));
+
+    const yearlyInstance = new DataSummary(
+      year.toString(),
+      yearlyData[year].posts,
+      yearlyData[year].comments,
+      (yearlyData[year].posts / daysInYear).toFixed(4),
+      (yearlyData[year].comments / daysInYear).toFixed(4),
+      yearlyData[year].uniqueSubredditsPosts.size,
+      yearlyData[year].uniqueSubredditsComments.size,
+      Object.entries(yearlyData[year].subredditPosts)
+        .map(([subreddit, count]) => {
+          const subredditInstance = new TopSubreddit(subreddit, count);
+          subredditInstance.calculatePercentage(yearlyData[year].posts);
+          return subredditInstance;
+        })
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5),
+      Object.entries(yearlyData[year].subredditComments)
+        .map(([subreddit, count]) => {
+          const subredditInstance = new TopSubreddit(subreddit, count);
+          subredditInstance.calculatePercentage(yearlyData[year].comments);
+          return subredditInstance;
+        })
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5)
     );
 
-    const allActivity = [...submissions, ...comments];
-    const firstActivityDate = allActivity.length
-      ? new Date(Math.min(...allActivity.map(({ created_utc }) => created_utc * 1000)))
-      : null;
+    return yearlyInstance;
+  });
 
-    const lastActivityDate = allActivity.length
-      ? new Date(Math.max(...allActivity.map(({ created_utc }) => created_utc * 1000)))
-      : null;
-
-    const activePeriodDays =
-      firstActivityDate && lastActivityDate
-        ? Math.ceil((lastActivityDate - firstActivityDate) / (1000 * 60 * 60 * 24)) + 1
-        : 0;
-
-    const subredditPostCounts = submissions.reduce((acc, { subreddit }) => {
-      acc[subreddit] = (acc[subreddit] || 0) + 1;
-      return acc;
-    }, {});
-
-    const subredditCommentCounts = comments.reduce((acc, { subreddit }) => {
-      acc[subreddit] = (acc[subreddit] || 0) + 1;
-      return acc;
-    }, {});
-
-    const sortedSubredditsByPosts = Object.entries(subredditPostCounts)
-      .map(([subreddit, count]) => ({
-        subreddit,
-        count,
-        percentage: calculatePercentage(count, totalPosts),
-      }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 15);
-
-    const sortedSubredditsByComments = Object.entries(subredditCommentCounts)
-      .map(([subreddit, count]) => ({
-        subreddit,
-        count,
-        percentage: calculatePercentage(count, totalComments),
-      }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 15);
-
-    const topUpvotedComments = comments
+  const result = new Result(
+    dataSummary,
+    yearlyStats,
+    comments
       .sort((a, b) => b.score - a.score)
       .slice(0, 5)
-      .map(({ score, created_utc, subreddit, body }) => ({
-        score,
-        date: formatDate(created_utc * 1000),
-        subreddit,
-        content: body,
-      }));
-
-    const topDownvotedComments = comments
+      .map(({ score, created_utc, subreddit, body }) => new RedditComment(score, created_utc, subreddit, body)),
+    comments
       .sort((a, b) => a.score - b.score)
       .slice(0, 5)
-      .map(({ score, created_utc, subreddit, body }) => ({
-        score,
-        date: formatDate(created_utc * 1000),
-        subreddit,
-        content: body,
-      }));
+      .map(({ score, created_utc, subreddit, body }) => new RedditComment(score, created_utc, subreddit, body)),
+    topWords
+  );
 
-    const result = 
-    {
-      account_creation_date: formatDate(accountCreationDate),
-      total_posts: totalPosts,
-      total_comments: totalComments,
-      unique_subreddit_posts: Object.entries(subredditPostCounts).length,
-      unique_subreddit_comments: Object.entries(subredditCommentCounts).length,
-      average_posts_per_day_account_age: (totalPosts / accountAgeDays).toFixed(4),
-      average_comments_per_day_account_age: (totalComments / accountAgeDays).toFixed(4),
-      first_activity_date: firstActivityDate ? formatDate(firstActivityDate) : "N/A",
-      last_activity_date: lastActivityDate ? formatDate(lastActivityDate) : "N/A",
-      average_posts_per_day_active_period: (totalPosts / activePeriodDays || 0).toFixed(4),
-      average_comments_per_day_active_period: (totalComments / activePeriodDays || 0).toFixed(4),
-      top_subreddits_by_posts: sortedSubredditsByPosts,
-      top_subreddits_by_comments: sortedSubredditsByComments,
-      top_upvoted_comments: topUpvotedComments,
-      top_downvoted_comments: topDownvotedComments,
-    };
+  return result;
+};
 
-    console.log("Caching result...");
+app.get("/get_user_activity", async (req, res) => {
+  const { username } = req.query;
+  if (!username) return res.status(400).json({ error: "Username is required" });
+
+  try {
+    if (cache.has(username)) return res.json(cache.get(username));
+
+    const { userData, submissions, comments } = await fetchRedditUserData(username);
+    const result = processUserData(userData, submissions, comments);
+
     cache.set(username, result);
     res.json(result);
-  } 
-  catch (error) 
-  {
-    console.error("Error processing request:", error.message);
+  } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-app.listen(port, host, () =>
-  console.log(`Server running at http://${host}:${port}`)
-);
+app.listen(PORT, HOST, () => console.log(`Server running at http://${HOST}:${PORT}`));
