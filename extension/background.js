@@ -7,7 +7,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         url: `${popupURL}?username=${encodeURIComponent(request.username)}`,
         type: "popup",
         width: 525,
-        height: 525,
+        height: 625,
       });
     }
   });

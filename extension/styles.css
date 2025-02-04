@@ -1,4 +1,11 @@
-/* styles.css */
+:root {
+  --scrollbar-width: 8px;
+  --scrollbar-thumb-bg: #ccc;
+  --scrollbar-track-bg: transparent;
+  --scrollbar-border-radius: 10px;
+}
+
+/* General Styles */
 body {
   font-family: Arial, sans-serif;
   background-color: #f5f5f5;
@@ -8,9 +15,10 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 180px;
+  min-height: 100vh;
 }
 
+/* Main Container */
 .app-container {
   background-color: #fff;
   border-radius: 16px;
@@ -20,6 +28,7 @@ body {
   text-align: center;
 }
 
+/* Header */
 .app-header {
   display: flex;
   flex-direction: column;
@@ -27,27 +36,45 @@ body {
   margin-bottom: 20px;
 }
 
-.content h1 {
-  font-size: 1.5rem;
-  margin-bottom: 10px;
-}
-
-.search-section {
+/* Search Box with Button Inside */
+.search-container {
   display: flex;
-  justify-content: center;
   align-items: center;
-  margin-bottom: 20px;
+  width: 100%;
+  max-width: 500px;
+  background: white;
+  border-radius: 0.5em;
+  border: 2px solid #ccc;
+  padding: 0.25em;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
 }
 
-.search-input {
+.search-container input {
   flex: 1;
-  padding: 8px;
-  font-size: 1rem;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  margin-right: 8px;
+  border: none;
+  padding: 12px;
+  font-size: 16px;
+  outline: none;
+  border-radius: 0.5em;
 }
 
+.search-container button {
+  background: #ff6347;
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  font-size: 16px;
+  cursor: pointer;
+  border-radius: 0.5em;
+  margin-left: 0.5em;
+  transition: background 0.3s;
+}
+
+.search-container button:hover {
+  background: #e5533d;
+}
+
+/* Autocomplete List */
 .autocomplete-list {
   position: absolute;
   background: #fff;
@@ -60,7 +87,7 @@ body {
   overflow-y: auto;
   list-style: none;
   padding: 0;
-  display: none; /* Hidden by default */
+  display: none;
   z-index: 1000;
 }
 
@@ -75,55 +102,104 @@ body {
   color: #fff;
 }
 
-.get-activity-button {
-  display: inline-block;
-  background-color: #0079d3;
-  color: #fff;
-  font-size: 1rem;
-  border: none;
-  border-radius: 8px;
-  padding: 10px 16px;
-  cursor: pointer;
-  margin-bottom: 20px;
-}
-
-.get-activity-button:hover {
-  background-color: #005fa3;
-}
-
+/* Results Section */
 .results-section {
   text-align: left;
-  padding: 10px;
+  padding: 5px;
   background-color: #f9f9f9;
   border-radius: 8px;
   border: 1px solid #ddd;
-}
-
-.results-section h2 {
-  font-size: 1.25rem;
-  margin-bottom: 10px;
-}
-
-.results-content {
-  font-size: 0.9rem;
-  color: #666;
-  height: 200px;
-
+  margin-top: 10px;
+  height: 365px;
   overflow-y: scroll;
-  scrollbar-width: thin; 
-  scrollbar-color: #ccc transparent;
+  scrollbar-width: thin;
+  scrollbar-color: #ccc transparent
 }
 
-.results-content::-webkit-scrollbar {
-  width: 8px; /* Width of the scrollbar */
+.accordion-item {
+  margin-bottom: 5px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  background-color: #f9f9f9;
 }
 
-.results-content::-webkit-scrollbar-thumb {
-  background-color: #ccc; /* Color of the scrollbar thumb */
-  border-radius: 10px; /* Rounded corners for the thumb */
+.accordion-button {
+  width: 100%;
+  padding: 10px;
+  background-color: #ff6347;
+  color: white;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-size: 16px;
+  border-radius: 5px;
 }
 
-.results-content::-webkit-scrollbar-track {
-  background: transparent; /* Background of the scrollbar track */
-  border-radius: 10px; /* Rounded corners for the track */
+.accordion-button:hover {
+  background-color: #e5533d;
+}
+
+.accordion-content {
+  display: none;
+  padding-inline: 10px;
+  background-color: #fff;
+  border-top: 1px solid #ddd;
+}
+
+.accordion-item.active .accordion-content {
+  display: block;
+}
+
+.accordion-button:focus {
+  outline: none;
+}
+
+/* Loading Spinner Container */
+.loading-spinner {
+  width: 100%;
+  padding-top: 100px;
+  height: 265px; /* Matches the results section height */
+  align-items: center; /* Center spinner vertically */
+  justify-content: center; /* Center spinner horizontally */
+  flex-direction: column; /* Stack spinner and text */
+  position: relative;
+}
+
+/* Spinner Circle */
+.spinner {
+  margin: auto;
+  width: 75px;
+  height: 75px;
+  border: 5px solid #f3f3f3;
+  border-top: 5px solid #ff6347; /* Matches button color */
+  border-radius: 50%;
+  animation: spin 1s linear infinite; /* Spinning animation */
+}
+
+/* Spinner Animation */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Fetching Text Styles */
+.fetching-text {
+  margin-top: 15px;
+  color: #333;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+::-webkit-scrollbar {
+  width: var(--scrollbar-width);
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb-bg);
+  border-radius: var(--scrollbar-border-radius);
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track-bg);
+  border-radius: var(--scrollbar-border-radius);
 }

@@ -19,89 +19,119 @@ document.addEventListener("DOMContentLoaded", () =>
   {
     document.getElementById("username").value = lastUserData.username;
     document.getElementById("results").innerHTML = lastUserData.resultsHTML;
+    addAccordionEventListeners();
   }
 
   setupAutocomplete(lastUsernames);
 });
 
-document.getElementById("getActivity").addEventListener("click", async () => 
-{
+document.getElementById("getActivity").addEventListener("click", async () => {
   const username = document.getElementById("username").value.trim();
   const resultsDiv = document.getElementById("results");
+  const loadingSpinner = document.getElementById("loadingSpinner");
 
-  if (!username) 
-  {
-    resultsDiv.textContent = "Please enter a username.";
-    return;
+  if (!username) {
+      resultsDiv.textContent = "Please enter a username.";
+      return;
   }
 
-  try 
-  {
-    resultsDiv.textContent = "Fetching activity...";
-    const response = await fetch(`${CONFIG.BACKEND_URL}/get_user_activity?username=${username}`);
-    const data = await response.json();
+  try {
+      resultsDiv.textContent = ""; // Clear results
+      loadingSpinner.style.display = "block"; // Show loading spinner
+      resultsDiv.style.display = "none";
 
-    if (data.error) 
-    {
-      resultsDiv.textContent = `Error: ${data.error}`;
-    } 
-    else 
-    {
-      const resultsHTML = 
-      `
-        <span><strong>Account Created:</strong> ${data.account_creation_date}</span><br/>
-        <span><strong>Total Posts:</strong> ${data.total_posts}</span><br/>
-        <span><strong>Total Comments:</strong> ${data.total_comments}</span><br/>
-        <span><strong>Average Posts Per Day (since account creation):</strong> ${data.average_posts_per_day_account_age}</span><br/>
-        <span><strong>Average Comments Per Day (since account creation):</strong> ${data.average_comments_per_day_account_age}</span><br/><br/>
-        <span><strong>Account Active Between:</strong> ${data.first_activity_date} - ${data.last_activity_date}</span><br/>
-        <span><strong>Average Posts Per Day (active period):</strong> ${data.average_posts_per_day_active_period}</span><br/>
-        <span><strong>Average Posts Per Day (active period):</strong> ${data.average_comments_per_day_active_period}</span><br/><br/>
-        <span><strong>Active Subreddits by Post (Top 15, Total ${data.unique_subreddit_posts}):</strong></span><br/>
-        <ul>
-          ${data.top_subreddits_by_posts.map(
-            (comment) =>
-              `<li>\tCount: ${comment.count} | Percentage: ${comment.percentage} | Subreddit: ${comment.subreddit}</li>`
-          ).join("")}
-        </ul>
-        <span><strong>Active Subreddits by Comments (Top 15, Total ${data.unique_subreddit_comments}):</strong></span>
-        <ul>
-          ${data.top_subreddits_by_comments.map(
-            (comment) =>
-              `<li>\tCount: ${comment.count} | Percentage: ${comment.percentage} | Subreddit: ${comment.subreddit}</li>`
-          ).join("")}
-        </ul>
-        <span><strong>Top 5 Most Upvoted Comments:</strong></span><br/>
-        <ul>
-          ${data.top_upvoted_comments
-            .map(
-              (comment) =>
-                `<li>Score: ${comment.score} | Date: ${comment.date} | Subreddit: ${comment.subreddit}<br/>
-                Content: ${comment.content}</li><br/>`
-            )
-            .join("")}
-        </ul>
-        <span><strong>Top 5 Most Downvoted Comments:</strong></span><br/>
-        <ul>
-          ${data.top_downvoted_comments
-            .map(
-              (comment) =>
-                `<li>Score: ${comment.score} | Date: ${comment.date} | Subreddit: ${comment.subreddit}<br/>
-                Content: ${comment.content}</li><br/>`
-            )
-            .join("")}
-        </ul>
-      `;
+      const response = await fetch(`${CONFIG.BACKEND_URL}/get_user_activity?username=${username}`);
+      const data = await response.json();
 
-      resultsDiv.innerHTML = resultsHTML;
-      saveToLocalStorage(username, resultsHTML);
-    }
-  } 
-  catch (err) 
-  {
-    resultsDiv.textContent = `Error: ${err.message}`;
+      loadingSpinner.style.display = "none"; // Hide spinner
+      resultsDiv.style.display = "block";
+
+      if (data.error) {
+          resultsDiv.textContent = `Error: ${data.error}`;
+      } else {
+          const resultsHTML = createAccordion(data);
+          resultsDiv.innerHTML = resultsHTML;
+          saveToLocalStorage(username, resultsHTML);
+          addAccordionEventListeners();
+      }
+  } catch (err) {
+      loadingSpinner.style.display = "none"; // Hide spinner
+      resultsDiv.textContent = `Error: ${err.message}`;
   }
 });
+
+function createAccordion(data) 
+{
+    let accordionHTML = '';
+
+    // Overall Data Section
+    accordionHTML += createAccordionItem('Overall Data', 
+      `
+        <br/><span>Account Created: ${data.overall_data.date}</span><br/>
+        <span>Total Posts: ${data.overall_data.total_posts}</span><br/>
+        <span>Total Comments: ${data.overall_data.total_comments}</span><br/>
+        <span>Avg Posts Per Day: ${data.overall_data.avg_posts_per_day}</span><br/>
+        <span>Avg Comments Per Day: ${data.overall_data.avg_comments_per_day}</span>
+        ${createSubredditList(`Subreddits by Posts (Top 10, Total ${data.overall_data.unique_subreddits_posts})`, data.overall_data.top_subreddits_by_posts)}
+        ${createSubredditList(`Subreddits by Comments (Top 10, Total ${data.overall_data.unique_subreddits_comments})`, data.overall_data.top_subreddits_by_comments)}
+    `);
+
+    // Yearly Stats Section
+    data.yearly_stats.forEach(yearData => 
+    {
+      accordionHTML += createAccordionItem(`Year: ${yearData.date}`, 
+      `
+        <br/><span>Total Posts: ${yearData.total_posts}</span><br/>
+        <span>Total Comments: ${yearData.total_comments}</span><br/>
+        <span>Avg Posts Per Day: ${yearData.avg_posts_per_day}</span><br/>
+        <span>Avg Comments Per Day: ${yearData.avg_comments_per_day}</span>
+        ${createSubredditList(`Subreddits by Posts (Top 10, Total ${yearData.unique_subreddits_posts})`, yearData.top_subreddits_by_posts)}
+        ${createSubredditList(`Subreddits by Comments (Top 10, Total ${yearData.unique_subreddits_comments})`, yearData.top_subreddits_by_comments)}
+      `);
+    });
+
+    // Top Upvoted Comments
+    accordionHTML += createAccordionItem('Top Upvoted Comments', data.top_upvoted_comments.map(comment => 
+      `
+        <p><strong>${comment.subreddit} : ${comment.score} Upvotes</strong></p>
+        <p>${comment.content}</p>
+    `).join(''));
+
+    // Top Downvoted Comments
+    accordionHTML += createAccordionItem('Top Downvoted Comments', data.top_downvoted_comments.map(comment => 
+      `
+        <p><strong>${comment.subreddit} : ${comment.score} Downvotes</strong></p>
+        <p>${comment.content}</p>
+    `).join(''));
+
+    // Most Used Words
+    accordionHTML += createAccordionItem('Most Used Words', data.most_used_words.map(word => 
+      `
+        <p>${word.word} : ${word.count} occurrences</p>
+    `).join(''));
+
+    return accordionHTML;
+}
+
+function createAccordionItem(title, content) {
+    return `
+        <div class="accordion-item">
+            <button class="accordion-button">${title}</button>
+            <div class="accordion-content">${content}</div>
+        </div>
+    `;
+}
+
+function createSubredditList(title, subreddits) {
+    return `
+        <h4>${title}</h4>
+        <ul>
+            ${subreddits.map(subreddit => `
+                <li>${subreddit.subreddit} (${subreddit.count} posts, ${subreddit.percentage}% of total)</li>
+            `).join('')}
+        </ul>
+    `;
+}
 
 function saveToLocalStorage(username, resultsHTML) 
 {
@@ -239,5 +269,21 @@ function setupAutocomplete(lastUsernames)
     {
       autocompleteList.style.display = "none";
     }
+  });
+}
+
+function addAccordionEventListeners() {
+  // Find all the accordion buttons
+  const accordionButtons = document.querySelectorAll('.accordion-button');
+
+  // Add a click event to each button
+  accordionButtons.forEach(button => {
+      button.addEventListener('click', function () {
+          const accordionItem = this.closest('.accordion-item');
+          const content = accordionItem.querySelector('.accordion-content');
+
+          // Toggle the active class and visibility
+          accordionItem.classList.toggle('active');
+      });
   });
 }
