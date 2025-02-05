@@ -3,7 +3,7 @@
   "name": "Reddit Activity Viewer",
   "version": "1.0",
   "description": "Find you who you're talking to, get the selected users account informations such as: Creation date, total posts and comments, Active period, there most active subreddits, and there best and worst takes.",
-  "permissions": ["activeTab", "https://*.reddit.com/*", "storage"],
+  "permissions": ["activeTab", "https://*.reddit.com/*", "storage", "system.display"],
   "browser_action": {
     "default_popup": "popup.html",
     "default_icon": {

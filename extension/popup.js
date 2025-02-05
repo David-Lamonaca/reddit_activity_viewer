@@ -116,7 +116,7 @@ function createAccordion(data)
 function createAccordionItem(title, content) {
     return `
         <div class="accordion-item">
-            <button class="accordion-button">${title}</button>
+            <button class="accordion-button" tabindex="0">${title}</button>
             <div class="accordion-content">${content}</div>
         </div>
     `;
@@ -260,6 +260,17 @@ function setupAutocomplete(lastUsernames)
     {
       e.preventDefault();
       autocompleteList.style.display = "none";
+
+      const firstAccordionButton = document.querySelector('.accordion-button');
+      const usernameInput = document.getElementById("username");
+      if (firstAccordionButton) 
+      {
+        firstAccordionButton.focus();
+      } 
+      else if (usernameInput) 
+      {
+        usernameInput.focus();
+      }
     }
   });
 

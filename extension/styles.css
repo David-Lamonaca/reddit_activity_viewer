@@ -84,7 +84,9 @@ body {
   margin-top: 5px;
   width: 90%;
   max-height: 150px;
-  overflow-y: auto;
+  overflow-y: scroll;
+  scrollbar-width: thin;
+  scrollbar-color: #ccc transparent;
   list-style: none;
   padding: 0;
   display: none;
@@ -135,7 +137,8 @@ body {
   border-radius: 5px;
 }
 
-.accordion-button:hover {
+.accordion-button:hover,
+.accordion-button:focus {
   background-color: #e5533d;
 }
 
@@ -144,6 +147,11 @@ body {
   padding-inline: 10px;
   background-color: #fff;
   border-top: 1px solid #ddd;
+}
+
+.accordion-item.active .accordion-button {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
 
 .accordion-item.active .accordion-content {
