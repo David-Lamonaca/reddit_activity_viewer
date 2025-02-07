@@ -1,3 +1,13 @@
+export class RedditCreds 
+{
+    constructor(ClientID, ClientSecret, UserAgent) 
+    {
+      this.ClientID = ClientID;
+      this.ClientSecret = ClientSecret
+      this.UserAgent = UserAgent;
+    }
+}
+
 export class RedditComment 
 {
     constructor(score, created_utc, subreddit, content) 
