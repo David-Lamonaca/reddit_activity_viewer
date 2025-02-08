@@ -47,9 +47,15 @@ const cache = new LRUCache
   ttl: 1000 * 60 * 30,
 });
 
-const fetchPaginatedData = async (url, token, userAgent) => 
+// App BottleNeck is here. 
+// Ideally i'd be able to batch the requests.
+// but I only know what/where the next subset of data is based on the returned 'after' field.
+// (which I only get after I make a request.))
+let apiCallCount = 0;
+const fetchPaginatedData = async (url, token, userAgent, sort = 'new') => 
 {
   let after = null;
+  let count = null;
   const allData = [];
 
   while (true) 
@@ -61,14 +67,17 @@ const fetchPaginatedData = async (url, token, userAgent) =>
         Authorization: `Bearer ${token}`,
         "User-Agent": userAgent,
       },
-      params: { limit: 100, after },
+      params: { limit: 100, after, count, sort },
     });
 
     const newItems = response.data.children.map(({ data }) => data);
     allData.push(...newItems);
     after = response.data.after;
+    count = allData.length;
+    apiCallCount++;
     if (!after) break;
   }
+  console.log(`${apiCallCount}`)
   return allData;
 };
 
@@ -76,6 +85,9 @@ const fetchRedditUserData = async (username) =>
 {
   try 
   {
+    apiCallCount = 0;
+    console.log(`API Requests made for user: ${username} was: `);
+
     const cred = getNextCreds();
     const { data: tokenResponse } = await axios.post
     (
@@ -88,9 +100,10 @@ const fetchRedditUserData = async (username) =>
     );
 
     const token = tokenResponse.access_token;
-    const [userResponse, submissions, comments] = await Promise.all
+    const [userResponse, topSubmissions, topComments, contSubmissions, contComments] = await Promise.all
     ([
-      axios.get(`https://oauth.reddit.com/user/${username}/about`, {
+      axios.get(`https://oauth.reddit.com/user/${username}/about`, 
+      {
         headers: 
         {
           Authorization: `Bearer ${token}`,
@@ -101,20 +114,51 @@ const fetchRedditUserData = async (username) =>
       (
         `https://oauth.reddit.com/user/${username}/submitted`,
         token,
-        cred.UserAgent
+        cred.UserAgent,
+        'top'
       ),
       fetchPaginatedData
       (
         `https://oauth.reddit.com/user/${username}/comments`,
         token,
-        cred.UserAgent
+        cred.UserAgent,
+        'top'
+      ),
+      fetchPaginatedData
+      (
+        `https://oauth.reddit.com/user/${username}/submitted`,
+        token,
+        cred.UserAgent,
+        'controversial'
+      ),
+      fetchPaginatedData
+      (
+        `https://oauth.reddit.com/user/${username}/comments`,
+        token,
+        cred.UserAgent,
+        'controversial'
       ),
     ]);
+
+    const uniquePosts = new Map();
+    [...topSubmissions, ...contSubmissions].forEach(post => 
+    {
+      uniquePosts.set(post.author_fullname + post.name, post); 
+    });
+
+    const uniqueComments = new Map();
+    [...topComments, ...contComments].forEach(comment => 
+    {
+      uniqueComments.set(comment.author_fullname + comment.name, comment); 
+    });
+
+    const submissions = Array.from(uniquePosts.values());
+    const comments = Array.from(uniqueComments.values());
     return { userData: userResponse.data, submissions, comments };
   } 
   catch (error) 
   {
-    throw new Error(error.response?.data?.message || "Failed to fetch user data");
+    throw new Error(error?.message || "Failed to fetch user data");
   }
 };
 
@@ -127,7 +171,10 @@ const getTopWords = (texts, limit = 10) =>
 {
   const stopWords = new Set(STOP_WORDS ? STOP_WORDS.split(",") : []);
   const wordCounts = {};
-  const words = texts.join(" ").toLowerCase().match(/\b\w{3,}\b/g) || [];
+  const words = texts
+    .join(" ")
+    .toLowerCase()
+    .match(/\b(?:[a-zA-Z]+(?:'[a-zA-Z]+)?|[a-zA-Z]+(?:-[a-zA-Z]+)+)\b/g) || [];
 
   words.forEach((word) => 
   {
@@ -295,8 +342,19 @@ app.get("/get_user_activity", async (req, res) =>
   {
     if (cache.has(username)) return res.json(cache.get(username));
 
+    let startTime = performance.now()
+
     const { userData, submissions, comments } = await fetchRedditUserData(username);
+
+    let endTime = performance.now()
+    console.log(`Fetching data took: ${Math.floor(((endTime - startTime) % (1000 * 60)) / 1000) } seconds`)
+
+    startTime = performance.now()
+
     const result = processUserData(userData, submissions, comments);
+
+    endTime = performance.now()
+    console.log(`Processing data took: ${Math.floor(((endTime - startTime) % (1000 * 60)) / 1000) } seconds`)
 
     cache.set(username, result);
     res.json(result);
