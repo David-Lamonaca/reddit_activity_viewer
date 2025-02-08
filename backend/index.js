@@ -41,7 +41,7 @@ const getNextCreds = () =>
 
 const cache = new LRUCache
 ({
-  max: 200,
+  max: 300,
   maxSize: 20 * 1024 * 1024,
   sizeCalculation: (value, key) => JSON.stringify(value).length + key.length,
   ttl: 1000 * 60 * 30,
@@ -51,7 +51,6 @@ const cache = new LRUCache
 // Ideally i'd be able to batch the requests.
 // but I only know what/where the next subset of data is based on the returned 'after' field.
 // (which I only get after I make a request.))
-let apiCallCount = 0;
 const fetchPaginatedData = async (url, token, userAgent, sort = 'new') => 
 {
   let after = null;
@@ -74,10 +73,9 @@ const fetchPaginatedData = async (url, token, userAgent, sort = 'new') =>
     allData.push(...newItems);
     after = response.data.after;
     count = allData.length;
-    apiCallCount++;
     if (!after) break;
   }
-  console.log(`${apiCallCount}`)
+
   return allData;
 };
 
@@ -85,9 +83,6 @@ const fetchRedditUserData = async (username) =>
 {
   try 
   {
-    apiCallCount = 0;
-    console.log(`API Requests made for user: ${username} was: `);
-
     const cred = getNextCreds();
     const { data: tokenResponse } = await axios.post
     (
@@ -100,7 +95,7 @@ const fetchRedditUserData = async (username) =>
     );
 
     const token = tokenResponse.access_token;
-    const [userResponse, topSubmissions, topComments, contSubmissions, contComments] = await Promise.all
+    const [userResponse, topSubmissions, topComments, contSubmissions, contComments, newSubmissions, newComments] = await Promise.all
     ([
       axios.get(`https://oauth.reddit.com/user/${username}/about`, 
       {
@@ -138,16 +133,30 @@ const fetchRedditUserData = async (username) =>
         cred.UserAgent,
         'controversial'
       ),
+      fetchPaginatedData
+      (
+        `https://oauth.reddit.com/user/${username}/submitted`,
+        token,
+        cred.UserAgent,
+        'new'
+      ),
+      fetchPaginatedData
+      (
+        `https://oauth.reddit.com/user/${username}/comments`,
+        token,
+        cred.UserAgent,
+        'new'
+      ),
     ]);
 
     const uniquePosts = new Map();
-    [...topSubmissions, ...contSubmissions].forEach(post => 
+    [...newSubmissions, ...topSubmissions, ...contSubmissions ].forEach(post => 
     {
       uniquePosts.set(post.author_fullname + post.name, post); 
     });
 
     const uniqueComments = new Map();
-    [...topComments, ...contComments].forEach(comment => 
+    [...topComments, ...contComments, ...newComments ].forEach(comment => 
     {
       uniqueComments.set(comment.author_fullname + comment.name, comment); 
     });
