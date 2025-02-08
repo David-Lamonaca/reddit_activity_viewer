@@ -36,14 +36,14 @@ document.getElementById("getActivity").addEventListener("click", async () => {
   }
 
   try {
-      resultsDiv.textContent = ""; // Clear results
-      loadingSpinner.style.display = "block"; // Show loading spinner
+      resultsDiv.textContent = "";
+      loadingSpinner.style.display = "block";
       resultsDiv.style.display = "none";
 
       const response = await fetch(`${CONFIG.BACKEND_URL}/get_user_activity?username=${username}`);
       const data = await response.json();
 
-      loadingSpinner.style.display = "none"; // Hide spinner
+      loadingSpinner.style.display = "none";
       resultsDiv.style.display = "block";
 
       if (data.error) {
@@ -55,7 +55,7 @@ document.getElementById("getActivity").addEventListener("click", async () => {
           addAccordionEventListeners();
       }
   } catch (err) {
-      loadingSpinner.style.display = "none"; // Hide spinner
+      loadingSpinner.style.display = "none";
       resultsDiv.textContent = `Error: ${err.message}`;
   }
 });
@@ -76,6 +76,42 @@ function createAccordion(data)
         ${createSubredditList(`Subreddits by Comments (Top 10, Total ${data.overall_data.unique_subreddits_comments})`, data.overall_data.top_subreddits_by_comments)}
     `);
 
+    // Last 7 Days
+    accordionHTML += createAccordionItem('Last 7 Days', 
+      data.lastSevenDays.map(day => 
+    `
+      <br/><span><strong>${day.date} | ${day.total_posts} Posts | ${day.total_comments} Comments</strong></span><br/>
+      ${createSubredditList(`Subreddits by Posts (Top 5, Total ${day.uniqueSubredditsPosts})`, day.top_subreddits_by_posts)}
+      ${createSubredditList(`Subreddits by Comments (Top 5, Total ${day.uniqueSubredditsComments})`, day.top_subreddits_by_comments)}
+    `)
+    .join(''));
+
+    // Most Used Words
+    accordionHTML += createAccordionItem('Most Used Words', 
+      data.most_used_words.map(word => 
+    `
+      <p>${word.word} : ${word.count} occurrences</p>
+    `)
+    .join(''));
+
+    // Top Upvoted Comments
+    accordionHTML += createAccordionItem('Top Upvoted Comments', 
+      data.top_upvoted_comments.map(comment => 
+    `
+      <p><strong>${comment.subreddit} : ${comment.score} Upvotes</strong></p>
+      <p>${comment.content}</p>
+    `).
+    join(''));
+
+    // Top Downvoted Comments
+    accordionHTML += createAccordionItem('Top Downvoted Comments', 
+      data.top_downvoted_comments.map(comment => 
+    `
+      <p><strong>${comment.subreddit} : ${comment.score} Downvotes</strong></p>
+      <p>${comment.content}</p>
+    `)
+    .join(''));
+
     // Yearly Stats Section
     data.yearly_stats.forEach(yearData => 
     {
@@ -89,26 +125,6 @@ function createAccordion(data)
         ${createSubredditList(`Subreddits by Comments (Top 10, Total ${yearData.unique_subreddits_comments})`, yearData.top_subreddits_by_comments)}
       `);
     });
-
-    // Top Upvoted Comments
-    accordionHTML += createAccordionItem('Top Upvoted Comments', data.top_upvoted_comments.map(comment => 
-      `
-        <p><strong>${comment.subreddit} : ${comment.score} Upvotes</strong></p>
-        <p>${comment.content}</p>
-    `).join(''));
-
-    // Top Downvoted Comments
-    accordionHTML += createAccordionItem('Top Downvoted Comments', data.top_downvoted_comments.map(comment => 
-      `
-        <p><strong>${comment.subreddit} : ${comment.score} Downvotes</strong></p>
-        <p>${comment.content}</p>
-    `).join(''));
-
-    // Most Used Words
-    accordionHTML += createAccordionItem('Most Used Words', data.most_used_words.map(word => 
-      `
-        <p>${word.word} : ${word.count} occurrences</p>
-    `).join(''));
 
     return accordionHTML;
 }

@@ -3,7 +3,7 @@ import axios from "axios";
 import dotenv from "dotenv";
 import { LRUCache } from "lru-cache";
 import cors from "cors";
-import { RedditCreds, RedditComment, MostUsedWord, TopSubreddit, DataSummary, Result } from './RedditModels.js';
+import { RedditCreds, RedditComment, MostUsedWord, TopSubreddit, DataSummary, DailyData, Result } from './RedditModels.js';
 
 if (process.env.NODE_ENV !== "production") 
 {
@@ -79,6 +79,9 @@ const fetchPaginatedData = async (url, token, userAgent, sort = 'new') =>
   return allData;
 };
 
+// Not all comments/posts get returned with every requests.
+// I noticed that depending on different sorts you will recieve,
+// different commments/posts array lengths and content (meaning different sort, differnt result)
 const fetchRedditUserData = async (username) => 
 {
   try 
@@ -94,6 +97,7 @@ const fetchRedditUserData = async (username) =>
       }
     );
 
+    // We use a promise.all here to run these requests concurrently saving us some time. 
     const token = tokenResponse.access_token;
     const [userResponse, topSubmissions, topComments, contSubmissions, contComments, newSubmissions, newComments] = await Promise.all
     ([
@@ -149,6 +153,9 @@ const fetchRedditUserData = async (username) =>
       ),
     ]);
 
+    // we make a unique string based on: 
+    // author_fullname (Looks like a user id)
+    // name (looks like a comment_id/post_id)
     const uniquePosts = new Map();
     [...newSubmissions, ...topSubmissions, ...contSubmissions ].forEach(post => 
     {
@@ -161,6 +168,8 @@ const fetchRedditUserData = async (username) =>
       uniqueComments.set(comment.author_fullname + comment.name, comment); 
     });
 
+    // This should result in us getting every Post and Comment that a user has made. 
+    // which is avauilable through the public API.
     const submissions = Array.from(uniquePosts.values());
     const comments = Array.from(uniqueComments.values());
     return { userData: userResponse.data, submissions, comments };
@@ -212,16 +221,58 @@ const processUserData = (userData, submissions, comments) =>
   const accountAgeDays = Math.ceil((Date.now() - accountCreationDate) / (1000 * 60 * 60 * 24));
 
   const yearlyData = {};
+  const last7DaysData = {};
+
   const subredditPostCounts = {};
   const subredditCommentCounts = {};
   const uniqueSubredditsPosts = new Set();
   const uniqueSubredditsComments = new Set();
 
+  const today = new Date();
+
   const processActivity = (items, type) => 
   {
     items.forEach(({ created_utc, subreddit }) => 
     {
-      const year = new Date(created_utc * 1000).getFullYear();
+      const dateObj = new Date(created_utc * 1000);
+      const year = dateObj.getFullYear();
+      const daysAgo = Math.floor((today - dateObj) / (1000 * 60 * 60 * 24));
+
+      let dateLabel = dateObj.toDateString();
+      if (daysAgo === 0) dateLabel = "Today";
+      else if (daysAgo === 1) dateLabel = "Yesterday";
+
+      if (daysAgo < 7) 
+      {
+        if (!last7DaysData[dateLabel]) 
+        {
+          last7DaysData[dateLabel] = {
+            date: dateLabel,
+            posts: 0,
+            comments: 0,
+            uniqueSubredditsPosts: new Set(),
+            uniqueSubredditsComments: new Set(),
+            subredditPosts: {},
+            subredditComments: {},
+          };
+        }
+        
+        if (type === "posts") 
+        {
+          last7DaysData[dateLabel].posts++;
+          last7DaysData[dateLabel].subredditPosts[subreddit] =
+            (last7DaysData[dateLabel].subredditPosts[subreddit] || 0) + 1;
+          last7DaysData[dateLabel].uniqueSubredditsPosts.add(subreddit); 
+        } 
+        else if (type === "comments")
+        {
+          last7DaysData[dateLabel].comments++;
+          last7DaysData[dateLabel].subredditComments[subreddit] =
+            (last7DaysData[dateLabel].subredditComments[subreddit] || 0) + 1;
+          last7DaysData[dateLabel].uniqueSubredditsComments.add(subreddit);
+        }
+      }
+
       if (!yearlyData[year]) 
       {
         yearlyData[year] = 
@@ -325,10 +376,49 @@ const processUserData = (userData, submissions, comments) =>
     return yearlyInstance;
   });
 
+  const last7DaysStats = Object.values(last7DaysData)
+  .map(({ date, posts, comments, uniqueSubredditsPosts, uniqueSubredditsComments, subredditPosts, subredditComments }) => 
+    new DailyData
+  (
+      date,
+      posts,
+      comments,
+      uniqueSubredditsPosts.size,  
+      uniqueSubredditsComments.size,
+      Object.entries(subredditPosts)
+        .map(([subreddit, count]) => 
+        {
+          const subredditInstance = new TopSubreddit(subreddit, count);
+          subredditInstance.calculatePercentage(posts);
+          return subredditInstance;
+        })
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5),
+      Object.entries(subredditComments)
+        .map(([subreddit, count]) => 
+        {
+          const subredditInstance = new TopSubreddit(subreddit, count);
+          subredditInstance.calculatePercentage(comments);
+          return subredditInstance;
+        })
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5)
+    )
+  )
+  .sort((a, b) => 
+  {
+    if (a.date === "Today") return -1;
+    if (b.date === "Today") return 1;
+    if (a.date === "Yesterday") return -1;
+    if (b.date === "Yesterday") return 1;
+    return new Date(b.date) - new Date(a.date);
+  });
+
   const result = new Result
   (
     dataSummary,
-    yearlyStats,
+    last7DaysStats,
+    topWords,
     comments
       .sort((a, b) => b.score - a.score)
       .slice(0, 5)
@@ -337,7 +427,7 @@ const processUserData = (userData, submissions, comments) =>
       .sort((a, b) => a.score - b.score)
       .slice(0, 5)
       .map(({ score, created_utc, subreddit, body }) => new RedditComment(score, created_utc, subreddit, body)),
-    topWords
+    yearlyStats,
   );
   return result;
 };
@@ -351,26 +441,15 @@ app.get("/get_user_activity", async (req, res) =>
   {
     if (cache.has(username)) return res.json(cache.get(username));
 
-    let startTime = performance.now()
-
     const { userData, submissions, comments } = await fetchRedditUserData(username);
-
-    let endTime = performance.now()
-    console.log(`Fetching data took: ${Math.floor(((endTime - startTime) % (1000 * 60)) / 1000) } seconds`)
-
-    startTime = performance.now()
-
     const result = processUserData(userData, submissions, comments);
-
-    endTime = performance.now()
-    console.log(`Processing data took: ${Math.floor(((endTime - startTime) % (1000 * 60)) / 1000) } seconds`)
 
     cache.set(username, result);
     res.json(result);
   } 
   catch (error) 
   {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message + " : "  +error.lineNumber });
   }
 });
 

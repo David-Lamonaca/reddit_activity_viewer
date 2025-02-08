@@ -47,6 +47,20 @@ export class TopSubreddit
     }
 }
 
+export class DailyData 
+{
+    constructor(date, totalPosts, totalComments, uniqueSubredditsPosts, uniqueSubredditsComments,  topSubredditsByPosts, topSubredditsByComments) 
+    {
+        this.date = date;
+        this.total_posts = totalPosts;
+        this.total_comments = totalComments;
+        this.uniqueSubredditsPosts = uniqueSubredditsPosts;
+        this.uniqueSubredditsComments = uniqueSubredditsComments;
+        this.top_subreddits_by_posts = topSubredditsByPosts;
+        this.top_subreddits_by_comments = topSubredditsByComments;
+    }
+}
+
 export class DataSummary
 {
     constructor(date, totalPosts, totalComments, 
@@ -73,13 +87,14 @@ export class DataSummary
 
 export class Result
 {
-    constructor(overallData, yearlyStats, topUpvotedComments,
-        topDownvotedComments, mostUsedWords)
+    constructor(overallData, lastSevenDays, mostUsedWords, 
+        topUpvotedComments, topDownvotedComments, yearlyStats)
     {
         this.overall_data = overallData;
-        this.yearly_stats = yearlyStats; 
+        this.lastSevenDays = lastSevenDays;
+        this.most_used_words = mostUsedWords;
         this.top_upvoted_comments = topUpvotedComments; 
         this.top_downvoted_comments = topDownvotedComments; 
-        this.most_used_words = mostUsedWords; 
+        this.yearly_stats = yearlyStats; 
     }
 }
