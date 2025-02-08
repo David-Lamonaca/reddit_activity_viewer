@@ -1,26 +1,27 @@
 {
-  "manifest_version": 2,
-  "name": "Reddit Activity Viewer",
-  "version": "1.0",
-  "description": "Find you who you're talking to, get the selected users account informations such as: Creation date, total posts and comments, Active period, there most active subreddits, and there best and worst takes.",
-  "permissions": ["activeTab", "https://*.reddit.com/*", "storage", "system.display"],
-  "browser_action": {
-    "default_popup": "popup.html",
-    "default_icon": {
+    "manifest_version": 2,
+    "name": "Reddit Activity Viewer",
+    "version": "3.0",
+    "description": "Find you who you're talking to, get the selected users account informations such as: Creation date, total posts and comments, Active period, there most active subreddits, and there best and worst takes.",
+    "permissions": ["activeTab", "https://*.reddit.com/*", "storage"],
+    "browser_action": {
+      "default_popup": "popup.html",
+      "default_icon": {
+        "48": "icon.png"
+      }
+    },
+    "icons": {
       "48": "icon.png"
-    }
-  },
-  "icons": {
-    "48": "icon.png"
-  },
-  "background": {
-    "scripts": ["background.js"],
-    "persistent": true
-  },
-  "content_scripts": [
-    {
-      "matches": ["https://*.reddit.com/*"],
-      "js": ["content.js"]
-    }
-  ]
-}
+    },
+    "background": {
+      "scripts": ["background.js"],
+      "persistent": true
+    },
+    "content_scripts": [
+      {
+        "matches": ["https://*.reddit.com/*"],
+        "js": ["content.js"]
+      }
+    ]
+  }
+  

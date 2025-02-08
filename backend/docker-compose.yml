@@ -1,7 +1,7 @@
 services:
-  app:
+  reddit_activity_viewer:
     build: .
     ports:
-      - "5000:5000"
+      - "80:80"
     env_file:
       - .env
