@@ -29,7 +29,7 @@ function addActivityButtons() {
     // Create the button
     const button = document.createElement("button");
     button.textContent = "📊";
-    button.title = "Get Activity";
+    button.title = "Look Up Users Activity.";
     button.className = "activity-button";
     button.style.cursor = "pointer";
     button.style.background = "transparent";

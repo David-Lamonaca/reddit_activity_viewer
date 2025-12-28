@@ -3,86 +3,157 @@ import CONFIG from "./config.js";
 document.addEventListener("DOMContentLoaded", () => 
 {
   const params = new URLSearchParams(window.location.search);
-  const username = params.get("username");
-  const usernameInput = document.getElementById("username");
-  const getActivityButton = document.getElementById("getActivity");
+  const usernameParam = params.get("username");
 
   const lastUserData = JSON.parse(localStorage.getItem("lastUserData"));
   const lastUsernames = JSON.parse(localStorage.getItem("lastUsernames")) || [];
 
-  if (username) 
+  if (usernameParam) 
   {
-    usernameInput.value = username;
+    usernameInput.value = usernameParam;
     getActivityButton.click();
   }
   else if (lastUserData) 
   {
     document.getElementById("username").value = lastUserData.username;
-    document.getElementById("results").innerHTML = lastUserData.resultsHTML;
+    document.getElementById("accSummary").innerHTML = lastUserData.data.summaryHTML;
+    document.getElementById("accSummary").style.display = "block";
+    document.getElementById("results").innerHTML = lastUserData.data.resultsHTML;
     addAccordionEventListeners();
   }
 
   setupAutocomplete(lastUsernames);
 });
 
-document.getElementById("getActivity").addEventListener("click", async () => {
-  const username = document.getElementById("username").value.trim();
-  const resultsDiv = document.getElementById("results");
-  const loadingSpinner = document.getElementById("loadingSpinner");
+const usernameInput = document.getElementById("username");
+const getActivityButton = document.getElementById("getActivity");
+const resultsDiv = document.getElementById("results");
+const accSummary = document.getElementById("accSummary");
+const loadingSpinner = document.getElementById("loadingSpinner");
 
-  if (!username) {
+const errorBanner = document.getElementById("errorBanner");
+const errorBannerText = document.getElementById("errorBannerText");
+const errorBannerClose = document.getElementById("errorBannerClose");
+
+function showErrorBanner(message, autoHide = false) 
+{
+  errorBannerText.textContent = message;
+  errorBanner.classList.remove("hidden");
+
+  if (autoHide) 
+  {
+    clearTimeout(showErrorBanner._timer);
+    showErrorBanner._timer = setTimeout(hideErrorBanner, 6000);
+  }
+}
+
+function hideErrorBanner() 
+{
+  errorBanner.classList.add("hidden");
+}
+
+errorBannerClose.addEventListener("click", hideErrorBanner);
+
+const fields = {
+  created: document.getElementById("accCreated"),
+  totalPosts: document.getElementById("accTotalPosts"),
+  totalComments: document.getElementById("accTotalComments"),
+  avgPosts: document.getElementById("accAvgPostsDay"),
+  avgComments: document.getElementById("accAvgCommentsDay"),
+  postKarma: document.getElementById("accPostKarma"),
+  commentKarma: document.getElementById("accCommentKarma"),
+  status: document.getElementById("accStatus"),
+  tooltip: document.getElementById("accStatusTooltip"),
+};
+
+document.getElementById("getActivity").addEventListener("click", async () => 
+{
+  const username = document.getElementById("username").value.trim();
+  if (!username) 
+  {
       resultsDiv.textContent = "Please enter a username.";
       return;
   }
 
-  try {
-      resultsDiv.textContent = "";
-      loadingSpinner.style.display = "block";
-      resultsDiv.style.display = "none";
+  resetSummaryUI();
+  hideErrorBanner();
 
-      const response = await fetch(`${CONFIG.BACKEND_URL}/get_user_activity?username=${username}`);
-      const data = await response.json();
+  try 
+  {
+      /* ---------- SUMMARY ---------- */
+      const summaryRes = await fetch(`${CONFIG.BACKEND_URL}/get_user_summary?username=${username}`);
+      if (summaryRes.status === 404) 
+      {
+        setDeletedUserState();
+        return; 
+      }
 
+      if (summaryRes.ok === false) 
+      {
+        showErrorBanner(`Failed to fetch user summary ${summaryRes}. Please try again.`);
+        loadingSpinner.style.display = "none";
+        resultsDiv.style.display = "block";
+        setEmptyActivityData();
+        return;
+      }
+
+      const summaryData = await summaryRes.json();
+      populateSummary(summaryData);
+     
+      /* ---------- ACTIVITY ---------- */
+      const activityRes = await fetch(`${CONFIG.BACKEND_URL}/get_user_activity?username=${username}`);
+      if (activityRes.status === 404) 
+      {
+        setDeletedUserState();
+        return; 
+      }
+
+      if (activityRes.ok == false) 
+      {
+        showErrorBanner(`Failed to fetch user activity (${activityRes.status}). Please try again.`);
+        loadingSpinner.style.display = "none";
+        resultsDiv.style.display = "block";
+        setEmptyActivityData();
+        return;
+      }
+      
+      const activityData = await activityRes.json();
       loadingSpinner.style.display = "none";
       resultsDiv.style.display = "block";
 
-      if (data.error) {
-          resultsDiv.textContent = `Error: ${data.error}`;
-      } else {
-          const resultsHTML = createAccordion(data);
-          resultsDiv.innerHTML = resultsHTML;
-          saveToLocalStorage(username, resultsHTML);
-          addAccordionEventListeners();
-      }
-  } catch (err) {
-      loadingSpinner.style.display = "none";
-      resultsDiv.textContent = `Error: ${err.message}`;
-  }
+      const resultsHTML = createAccordion(activityData);
+      resultsDiv.innerHTML = resultsHTML;
+
+      fields.totalPosts.textContent = activityData.overall_data.total_posts ?? "—";
+      fields.totalComments.textContent = activityData.overall_data.total_comments ?? "—";
+      fields.avgPosts.textContent = activityData.overall_data.avg_posts_per_day ?? "—";
+      fields.avgComments.textContent = activityData.overall_data.avg_comments_per_day ?? "—";
+
+      let summaryHTML = accSummary.innerHTML;
+
+      saveToLocalStorage(username, {summaryHTML, resultsHTML});
+      addAccordionEventListeners();
+      
+    } 
+    catch (err) 
+    {
+        loadingSpinner.style.display = "none";
+        resultsDiv.style.display = "block";
+        showErrorBanner(`Error: ${err.message}`);
+        setEmptyActivityData();
+    }
 });
 
 function createAccordion(data) 
 {
     let accordionHTML = '';
 
-    // Overall Data Section
-    accordionHTML += createAccordionItem('Overall Data', 
-      `
-        <br/><span>Account Created: ${data.overall_data.date}</span><br/>
-        <span>Total Posts: ${data.overall_data.total_posts}</span><br/>
-        <span>Total Comments: ${data.overall_data.total_comments}</span><br/>
-        <span>Avg Posts Per Day: ${data.overall_data.avg_posts_per_day}</span><br/>
-        <span>Avg Comments Per Day: ${data.overall_data.avg_comments_per_day}</span>
-        ${createSubredditList(`Subreddits by Posts (Top 10, Total ${data.overall_data.unique_subreddits_posts})`, data.overall_data.top_subreddits_by_posts)}
-        ${createSubredditList(`Subreddits by Comments (Top 10, Total ${data.overall_data.unique_subreddits_comments})`, data.overall_data.top_subreddits_by_comments)}
-    `);
-
     // Last 7 Days
     accordionHTML += createAccordionItem('Last 7 Days', 
       data.lastSevenDays.map(day => 
     `
-      <br/><span><strong>${day.date} | ${day.total_posts} Posts | ${day.total_comments} Comments</strong></span><br/>
-      ${createSubredditList(`Subreddits by Posts (Top 5, Total ${day.uniqueSubredditsPosts})`, day.top_subreddits_by_posts)}
-      ${createSubredditList(`Subreddits by Comments (Top 5, Total ${day.uniqueSubredditsComments})`, day.top_subreddits_by_comments)}
+      <span><strong>${day.date} — ${day.total_posts} Posts — ${day.total_comments} Comments</strong></span>
+       ${createSubredditList("Most Active In", day.top_subreddits_active_in)}
     `)
     .join(''));
 
@@ -95,35 +166,60 @@ function createAccordion(data)
     .join(''));
 
     // Top Upvoted Comments
-    accordionHTML += createAccordionItem('Top Upvoted Comments', 
-      data.top_upvoted_comments.map(comment => 
-    `
-      <p><strong>${comment.subreddit} : ${comment.score} Upvotes</strong></p>
-      <p>${comment.content}</p>
-    `).
-    join(''));
+    accordionHTML += createAccordionItem(
+    "Top Upvoted Comments",
+    data.top_upvoted_comments.map(c => `
+      <div class="comment-header">
+        <strong>${c.subreddit} (${c.score})</strong>
+        <a class="comment-link" href="${c.link}" target="_blank">View Comment</a>
+      </div>
+      <p class="comment-body">${c.content}</p>
+    `).join("")
+  );
 
     // Top Downvoted Comments
-    accordionHTML += createAccordionItem('Top Downvoted Comments', 
-      data.top_downvoted_comments.map(comment => 
-    `
-      <p><strong>${comment.subreddit} : ${comment.score} Downvotes</strong></p>
-      <p>${comment.content}</p>
-    `)
-    .join(''));
+    accordionHTML += createAccordionItem(
+    "Top Downvoted Comments",
+    data.top_downvoted_comments.map(c => `
+      <div class="comment-header">
+        <strong>${c.subreddit} (${c.score})</strong>
+        <a class="comment-link" href="${c.link}" target="_blank">View Comment</a>
+      </div>
+      <p class="comment-body">${c.content}</p>
+    `).join("")
+    );
 
     // Yearly Stats Section
     data.yearly_stats.forEach(yearData => 
     {
-      accordionHTML += createAccordionItem(`Year: ${yearData.date}`, 
-      `
-        <br/><span>Total Posts: ${yearData.total_posts}</span><br/>
-        <span>Total Comments: ${yearData.total_comments}</span><br/>
-        <span>Avg Posts Per Day: ${yearData.avg_posts_per_day}</span><br/>
-        <span>Avg Comments Per Day: ${yearData.avg_comments_per_day}</span>
-        ${createSubredditList(`Subreddits by Posts (Top 10, Total ${yearData.unique_subreddits_posts})`, yearData.top_subreddits_by_posts)}
-        ${createSubredditList(`Subreddits by Comments (Top 10, Total ${yearData.unique_subreddits_comments})`, yearData.top_subreddits_by_comments)}
-      `);
+      accordionHTML += createAccordionItem(
+        `Year: ${yearData.date}`,
+        `
+          <div class="year-summary-grid">
+            <div class="year-summary-item">
+              <div class="year-summary-label">Total Posts</div>
+              <div class="year-summary-value">${yearData.total_posts}</div>
+            </div>
+
+            <div class="year-summary-item">
+              <div class="year-summary-label">Total Comments</div>
+              <div class="year-summary-value">${yearData.total_comments}</div>
+            </div>
+
+            <div class="year-summary-item">
+              <div class="year-summary-label">Avg Posts / Day</div>
+              <div class="year-summary-value">${yearData.avg_posts_per_day}</div>
+            </div>
+
+            <div class="year-summary-item">
+              <div class="year-summary-label">Avg Comments / Day</div>
+              <div class="year-summary-value">${yearData.avg_comments_per_day}</div>
+            </div>
+          </div>
+
+          ${createSubredditList("Most Active In", yearData.top_subreddits_active_in)}
+        `
+      );
     });
 
     return accordionHTML;
@@ -149,9 +245,9 @@ function createSubredditList(title, subreddits) {
     `;
 }
 
-function saveToLocalStorage(username, resultsHTML) 
+function saveToLocalStorage(username, data) 
 {
-  const lastUserData = { username, resultsHTML };
+  const lastUserData = { username, data };
   localStorage.setItem("lastUserData", JSON.stringify(lastUserData));
 
   const lastUsernames = JSON.parse(localStorage.getItem("lastUsernames")) || [];
@@ -171,28 +267,6 @@ function setupAutocomplete(lastUsernames)
 {
   const inputField = document.getElementById("username");
   let autocompleteList = document.getElementById("autocompleteList");
-
-  if (!autocompleteList) 
-  {
-    autocompleteList = document.createElement("ul");
-    autocompleteList.id = "autocompleteList";
-    autocompleteList.style.position = "absolute";
-    autocompleteList.style.background = "#fff";
-    autocompleteList.style.border = "1px solid #ccc";
-    autocompleteList.style.width = `${inputField.offsetWidth}px`;
-    autocompleteList.style.maxHeight = "150px";
-    autocompleteList.style.overflowY = "auto";
-    autocompleteList.style.zIndex = "1000";
-    autocompleteList.style.listStyle = "none";
-    autocompleteList.style.padding = "0";
-    autocompleteList.style.margin = "0";
-    autocompleteList.style.display = "none";
-    document.body.appendChild(autocompleteList);
-  }
-
-  const rect = inputField.getBoundingClientRect();
-  autocompleteList.style.top = `${rect.bottom + window.scrollY}px`;
-  autocompleteList.style.left = `${rect.left + window.scrollX}px`;
 
   autocompleteList.innerHTML = lastUsernames
     .map(
@@ -314,3 +388,62 @@ function addAccordionEventListeners() {
       });
   });
 }
+
+function resetSummaryUI() 
+{
+  accSummary.style.display = "block";
+  loadingSpinner.style.display = "block";
+  resultsDiv.style.display = "none";
+  resultsDiv.textContent = "";
+
+  Object.values(fields).forEach(el => (el.textContent = "—"));
+  fields.tooltip.textContent = "More info on account visibility.";
+}
+
+function setDeletedUserState() 
+{
+  loadingSpinner.style.display = "none";
+  resultsDiv.style.display = "block";
+
+  fields.status.textContent = "Deleted / Not Found";
+  fields.tooltip.textContent =
+    "Reddit does not return data for this account.\n" +
+    "This usually means the account was deleted or never existed.";
+
+  setEmptyActivityData();
+}
+
+
+function populateSummary(data) 
+{
+  fields.created.textContent = data.accountCreationDate || "—";
+  fields.totalPosts.textContent = data.ttlPosts ?? "—";
+  fields.totalComments.textContent = data.ttlComments ?? "—";
+  fields.avgPosts.textContent = data.avgPosts ?? "—";
+  fields.avgComments.textContent = data.avgComments ?? "—";
+  fields.postKarma.textContent = data.linkKarma ?? "—";
+  fields.commentKarma.textContent = data.commentKarma ?? "—";
+  fields.status.textContent = data.status ?? "—";
+  fields.tooltip.textContent = data.toolTip ?? "—";
+}
+
+function setEmptyActivityData() {
+  const emptyData = {
+    overall_data: {
+      total_posts: 0,
+      total_comments: 0,
+      avg_posts_per_day: "0.0000",
+      avg_comments_per_day: "0.0000"
+    },
+    lastSevenDays: [],
+    most_used_words: [],
+    top_upvoted_comments: [],
+    top_downvoted_comments: [],
+    yearly_stats: [],
+    top_subreddits_active_in: []
+  };
+
+  resultsDiv.innerHTML = createAccordion(emptyData);
+  addAccordionEventListeners();
+}
+

@@ -8,28 +8,103 @@
 </head>
 <body>
 
-    <div class="app-container">
-        <header class="app-header">
-            <h1>Reddit Activity Viewer</h1>
-        </header>
+<div class="app-container">
 
-        <!-- Search Box with Button Inside -->
-        <div class="search-container">
-            <input type="text" id="username" placeholder="Enter a username...">
-            <button id="getActivity">Search</button>
+    <!-- PAGE LAYOUT WRAPPER -->
+    <div class="page-layout">
+
+        <!-- LEFT COLUMN -->
+        <div class="left-column">
+
+            <!-- Search Box with Button Inside -->
+            <div class="search-container">
+                <input type="text" id="username" placeholder="Enter a username...">
+                <button id="getActivity">Search</button>
+
+                <ul id="autocompleteList" class="autocomplete-list"></ul>
+            </div>
+
+            <!-- Summary Section -->
+            <div id="accSummary" class="acc-summary" style="display:none;">
+                <h2 class="acc-summary-title">Account Summary</h2>
+
+                <div id="accSummaryGrid" class="summary-grid">
+
+                    <div class="summary-col">
+                        <div class="summary-row">
+                            <div class="summary-label">Account Created:</div>
+                            <div class="summary-value" id="accCreated">—</div>
+                        </div>
+
+                        <div class="summary-row">
+                            <div class="summary-label">Total Posts:</div>
+                            <div class="summary-value" id="accTotalPosts">—</div>
+                        </div>
+
+                        <div class="summary-row">
+                            <div class="summary-label">Total Comments:</div>
+                            <div class="summary-value" id="accTotalComments">—</div>
+                        </div>
+
+                        <div class="summary-row">
+                            <div class="summary-label">Avg Posts / Day:</div>
+                            <div class="summary-value" id="accAvgPostsDay">—</div>
+                        </div>
+                    </div>
+
+                    <div class="summary-col">
+                        <div class="summary-row">
+                            <div class="summary-label">Post Karma:</div>
+                            <div class="summary-value" id="accPostKarma">—</div>
+                        </div>
+
+                        <div class="summary-row">
+                            <div class="summary-label">Comment Karma:</div>
+                            <div class="summary-value" id="accCommentKarma">—</div>
+                        </div>
+
+                        <div class="summary-row">
+                            <div class="summary-label">
+                                Account Visibility
+                                <span class="tooltip-wrapper">
+                                    <span class="tooltip-icon">⚠️</span>
+                                    <span class="tooltip-text" id="accStatusTooltip"></span>
+                                </span>
+                            </div>
+                            <div class="summary-value" id="accStatus">—</div>
+                        </div>
+
+                        <div class="summary-row">
+                            <div class="summary-label">Avg Comments / Day:</div>
+                            <div class="summary-value" id="accAvgCommentsDay">—</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <ul id="autocompleteList" class="autocomplete-list"></ul>
+        <!-- RIGHT COLUMN -->
+        <div class="right-column">
 
-        <!-- Results Section -->
-        <div id="results" class="results-section"></div>
+            <!-- Results (Accordion boxes) -->
+            <div id="results" class="results-section"></div>
 
-        <!-- Loading Spinner -->
-        <div id="loadingSpinner" class="loading-spinner" style="display:none;" >
-            <div class="spinner"></div>
-            <div class="fetching-text">Loading...</div>
+            <!-- Loading Spinner -->
+            <div id="loadingSpinner" class="loading-spinner" style="display:none;">
+                <div class="spinner"></div>
+                <div class="fetching-text">Loading...</div>
+            </div>
         </div>
-        
-    <script src="popup.js" type="module"></script>
+
+    </div>
+    
+    <div id="errorBanner" class="error-banner hidden" role="alert">
+        <span id="errorBannerText"></span>
+        <button id="errorBannerClose" aria-label="Close error">✕</button>
+    </div>
+
+</div>
+
+<script src="popup.js" type="module"></script>
 </body>
 </html>
